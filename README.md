@@ -301,18 +301,24 @@ You can also use any SQLite client (DB Browser for SQLite, DBeaver, etc.) to que
 The SQLite database contains two main tables:
 
 ### `transactions` table
-- `tx_hash` (TEXT, PRIMARY KEY) — Unique transaction identifier
+- `id` (INTEGER, PRIMARY KEY) — Auto-incrementing ID
+- `tx_hash` (TEXT, UNIQUE) — Unique transaction identifier (SHA-256)
 - `account` (TEXT) — Account identifier (IBAN)
 - `date` (TEXT) — Transaction date (ISO format: YYYY-MM-DD)
 - `description` (TEXT) — Transaction description
-- `amount` (REAL) — Transaction amount (positive for incoming, negative for outgoing)
-- `direction` (TEXT) — "incoming" or "outgoing"
+- `amount` (NUMERIC) — Transaction amount (always positive)
+- `direction` (TEXT) — "in" or "out"
+- `category` (TEXT) — Optional category (currently NULL)
+- `currency` (TEXT) — Currency code (default: EUR)
 - `source_file` (TEXT) — Original PDF filename
+- `source_page_first` (INTEGER) — First page number (nullable)
+- `created_at` (TIMESTAMP) — Record creation timestamp
 
 ### `imports` table
-- `id` (INTEGER, PRIMARY KEY)
+- `id` (INTEGER, PRIMARY KEY) — Auto-incrementing ID
+- `source_file` (TEXT) — Original PDF filename
 - `file_sha256` (TEXT, UNIQUE) — SHA-256 hash of imported PDF
-- `imported_at` (TEXT) — Import timestamp
+- `imported_at` (TIMESTAMP) — Import timestamp
 
 ---
 
