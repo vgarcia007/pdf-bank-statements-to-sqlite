@@ -1,0 +1,127 @@
+title: ING Viewer
+databases:
+  bank:
+    queries:
+      monthly:
+        title: Monthly income/expense
+        sql: |
+          SELECT
+            strftime('%Y-%m', date) AS month,
+            SUM(CASE WHEN direction='in'  THEN amount ELSE 0 END) AS income,
+            SUM(CASE WHEN direction='out' THEN amount ELSE 0 END) AS expense,
+            ROUND(
+              SUM(CASE WHEN direction='in'  THEN amount ELSE 0 END) -
+              SUM(CASE WHEN direction='out' THEN amount ELSE 0 END), 2
+            ) AS net
+          FROM transactions
+          GROUP BY month
+          ORDER BY month;
+
+      by_category:
+        title: Sum by category
+        sql: |
+          SELECT
+            IFNULL(category,'(uncategorized)') AS category,
+            SUM(CASE WHEN direction='out' THEN amount ELSE 0 END) AS expenses,
+            SUM(CASE WHEN direction='in'  THEN amount ELSE 0 END) AS income,
+            COUNT(*) AS cnt
+          FROM transactions
+          GROUP BY category
+          ORDER BY expenses DESC;
+
+      search:
+        title: Search text
+        sql: |
+          SELECT date, direction, amount, description
+          FROM transactions
+          WHERE description LIKE '%' || :q || '%'
+          ORDER BY date DESC
+          LIMIT 500;
+        params:
+          - q
+
+      by_month_account:
+        title: Monthly (per account)
+        sql: |
+          SELECT
+            account,
+            strftime('%Y-%m', date) AS month,
+            SUM(CASE WHEN direction='in'  THEN amount ELSE 0 END) AS income,
+            SUM(CASE WHEN direction='out' THEN amount ELSE 0 END) AS expense
+          FROM transactions
+          WHERE (:account IS NULL OR account = :account)
+          GROUP BY account, month
+          ORDER BY account, month;
+        params:
+          - account
+
+      match_payment_minimal:
+        title: Match payment (invoice_no optional, integer amount)
+        sql: |
+          WITH p AS (
+            SELECT
+              NULLIF(:account,     '')                 AS account,
+              DATE(:date_from)                          AS date_from,
+              NULLIF(:days_after, '')                  AS days_after_str,
+              NULLIF(LOWER(:invoice_no), '')           AS invoice_no,
+              NULLIF(:amount,      '')                 AS amount_str
+          ),
+          bounds AS (
+            SELECT
+              p.*,
+              -- days_after optional: wenn NULL -> kein Enddatum
+              CASE
+                WHEN p.days_after_str IS NULL THEN NULL
+                ELSE DATE(p.date_from, '+' || CAST(p.days_after_str AS INT) || ' days')
+              END AS date_to,
+              -- amount optional: als REAL parsen, sonst NULL
+              CASE
+                WHEN p.amount_str IS NULL THEN NULL
+                ELSE CAST(p.amount_str AS REAL)
+              END AS amount_val
+            FROM p
+          )
+          SELECT
+            t.tx_hash, t.date, t.amount, t.account, t.direction, t.description
+          FROM transactions t, bounds b
+          WHERE t.direction = 'in'
+            AND DATE(t.date) >= b.date_from
+            AND (b.date_to IS NULL OR DATE(t.date) <= b.date_to)
+            AND (b.account IS NULL OR t.account = b.account)
+            -- invoice_no optional (case-insensitive)
+            AND (b.invoice_no IS NULL OR LOWER(t.description) LIKE '%' || b.invoice_no || '%')
+            -- amount optional: integer-Euro-Match (Cents ignorieren)
+            AND (
+              b.amount_val IS NULL
+              OR CAST(t.amount AS INT) = CAST(b.amount_val AS INT)
+            )
+          ORDER BY t.date ASC;
+        params:
+          - date_from         # ISO 8601, z.B. 2024-08-02
+          - days_after        # optional, z.B. 90
+          - account           # optional (IBAN/Kontoname)
+          - invoice_no        # optional (LIKE %...%)
+          - amount            # optional (nur ganze Euro)
+
+      search_text:
+        title: Freitext-Suche (mit Jahr/Richtung/Account)
+        sql: |
+          WITH p AS (
+            SELECT
+              NULLIF(:q, '')         AS q,
+              NULLIF(:year, '')      AS year,
+              NULLIF(:direction, '') AS direction,
+              NULLIF(:account, '')   AS account
+          )
+          SELECT
+            t.date        AS datum,
+            t.amount      AS betrag,
+            t.description AS text,
+            t.account     AS konto
+          FROM transactions AS t, p
+          WHERE (p.direction IS NULL OR t.direction = p.direction)
+            AND (p.account   IS NULL OR t.account   = p.account)
+            AND (p.year      IS NULL OR strftime('%Y', t.date) = p.year)
+            AND (p.q         IS NULL OR LOWER(t.description) LIKE '%' || LOWER(p.q) || '%')
+          ORDER BY t.date DESC;
+        params: [q, year, direction, account]
