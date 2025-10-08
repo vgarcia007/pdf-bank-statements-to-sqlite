@@ -1,0 +1,5 @@
+# Ignore all PDF files
+*.pdf
+
+# Ignore VS Code settings folder
+.vscode/
