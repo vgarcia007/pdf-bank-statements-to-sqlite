@@ -8,3 +8,14 @@
 *.db
 *.db3
 *.sqlite-journal
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.log
+.venv/
+.env
+.dist/
+.build/
+.idea/
