@@ -1,5 +1,10 @@
-# Ignore all PDF files
-*.pdf
-
-# Ignore VS Code settings folder
 .vscode/
+*.pdf
+*.csv
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.sqlite
+*.db
+*.db3
+*.sqlite-journal
