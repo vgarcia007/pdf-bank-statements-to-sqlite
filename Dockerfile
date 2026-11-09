@@ -29,6 +29,7 @@ RUN python -m pip install -U pip setuptools wheel \
 
 # Copy your script into the image
 COPY ing2db.py /app/ing2db.py
+COPY paypalcsv2db.py /app/paypalcsv2db.py
 # Default command: keep container alive with a trivial loop
 # A TTY will be attached by compose; we keep it alive regardless.
 CMD ["sleep", "infinity"]

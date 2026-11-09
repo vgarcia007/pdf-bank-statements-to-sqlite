@@ -1,4 +1,4 @@
-title: ING Viewer
+title: Bank Viewer
 databases:
   bank:
     queries:
@@ -103,21 +103,22 @@ databases:
           - invoice_no        # optional (LIKE %...%)
           - amount            # optional (nur ganze Euro)
 
-      search_text:
-        title: Freitext-Suche (mit Jahr/Richtung/Account)
+
+      euer_search_text:
+        title: EUR Freitext-Suche (mit Jahr/Richtung/Account)
         sql: |
           WITH p AS (
             SELECT
-              NULLIF(:q, '')         AS q,
-              NULLIF(:year, '')      AS year,
-              NULLIF(:direction, '') AS direction,
-              NULLIF(:account, '')   AS account
+                  NULLIF(:q, '')         AS q,
+                  NULLIF(:year, '')      AS year,
+                  NULLIF(:direction, '') AS direction,
+                  NULLIF(:account, '')   AS account
           )
           SELECT
-            t.date        AS datum,
-            t.amount      AS betrag,
-            t.description AS text,
-            t.account     AS konto
+            strftime('%d.%m.%Y', t.date) AS "Datum",
+            REPLACE(printf('%.2f', t.amount), '.', ',') AS "Betrag",
+            t.description AS "Text",
+            t.account     AS "Konto"
           FROM transactions AS t, p
           WHERE (p.direction IS NULL OR t.direction = p.direction)
             AND (p.account   IS NULL OR t.account   = p.account)

@@ -15,7 +15,7 @@ ING statement -> SQLite importer (idempotent).
 - Finishes with WAL checkpoint + journal_mode=DELETE + VACUUM for viewer-friendly file.
 
 Usage examples:
-  python3 ing2db.py /path/to/ING_PDF.pdf --account "DE78 5001 0517 5416 1186 30"
+  python3 ing2db.py /path/to/ING_PDF.pdf --account "DE89 3704 0044 0532 0130 00"
   python3 ing2db.py /path/to/folder --db-path ./data/bank.sqlite3 --csv-out ./out.csv
   python3 ing2db.py /path/to/folder --keep-newlines --force
 """
@@ -125,6 +125,36 @@ def strip_trailing_headers_in_description(text: str) -> str:
 
 # ---------------------- Core parser -----------------------------------------
 
+def extract_ing_page_text(page) -> str:
+    """Recognize raised amount footnotes using font information, not a third decimal.
+
+    PDF extraction joins e.g. a 10pt amount and its 6pt superscript marker into
+    one token. Remove only markers proved by that font transition and an exact
+    occurrence count at the end of an amount line. The original PDF stays intact.
+    """
+    markers = {}
+    previous = None
+
+    def visit(text, cm, tm, font, size):
+        nonlocal previous
+        value = text.strip()
+        if not value:
+            return
+        if previous is not None and re.fullmatch(r"[1-9]", value) and 0 < size <= previous[1] * 0.75:
+            key = (previous[0], value)
+            markers[key] = markers.get(key, 0) + 1
+        amount = AMOUNT_RE.search(_norm(value))
+        previous = (value[amount.start():], size) if amount and size > 0 else None
+
+    text = page.extract_text(0, visitor_text=visit) or ""
+    for (amount, marker), count in markers.items():
+        pattern = re.compile(r"(?<![\d,.])" + re.escape(amount) + r"[ \t]*" + re.escape(marker)
+                             + r"(?=[ \t]*(?:€|EUR)?[ \t]*(?:\r?\n|$))")
+        if len(pattern.findall(text)) == count:
+            text = pattern.sub(lambda _: amount, text)
+    return text
+
+
 def parse_ing_kontoauszug(file: Path, keep_newlines: bool = False) -> tuple[pd.DataFrame, list[str]]:
     """Parse a single ING PDF into rows (date, description, amount) and return (DataFrame, page_texts)."""
     reader = PdfReader(file)
@@ -142,7 +172,7 @@ def parse_ing_kontoauszug(file: Path, keep_newlines: bool = False) -> tuple[pd.D
         current = None
 
     for page in reader.pages:
-        text = page.extract_text(0) or ""
+        text = extract_ing_page_text(page)
         page_texts.append(text)
         lines = text.split("\n")
         seen_first_date = False

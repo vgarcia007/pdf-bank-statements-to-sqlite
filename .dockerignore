@@ -19,3 +19,16 @@ __pycache__/
 .dist/
 .build/
 .idea/
+
+/data/import-service/
+/import-control/
+/secrets/
+*.CSV
+*.[cC][sS][vV]
+*.[pP][dD][fF]
+/data/*Kopie*.yaml
+.env.*
+!.env.example
+*.key
+*.pem
+*.sqlite3-journal

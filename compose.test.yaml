@@ -1,0 +1,34 @@
+name: bank-import-test
+services:
+  importer:
+    image: pdf-bank-statements-to-sqlite-ingparser
+    user: "1000:1000"
+    command: [python, /app/import_service/service.py]
+    environment:
+      BANK_TOKEN_FILE: /fixture/token
+      BANK_DATA: /fixture/data
+      BANK_CONTROL: /fixture/control
+      BANK_ACCOUNTS: /fixture/data/import-service/accounts.json
+    volumes:
+      - ${BANK_IMPORT_TEST_DIR:?Set an empty temporary fixture directory}:/fixture:rw
+      - ./import_service:/app/import_service:ro
+      - ./ing2db.py:/app/ing2db.py:ro
+      - ./paypalcsv2db.py:/app/paypalcsv2db.py:ro
+    networks:
+      bank_import:
+        aliases: [bank-import-test]
+  viewer:
+    image: datasetteproject/datasette@sha256:0f57db16cf4eb6cca57f1cedaa0a696bca1c65a1d75b8f7ee372c2dd909a32a0
+    user: "1000:1000"
+    entrypoint: [python, /app/import_service/viewer.py]
+    volumes:
+      - ${BANK_IMPORT_TEST_DIR:?Set fixture directory}/data:/data:ro
+      - ${BANK_IMPORT_TEST_DIR:?Set fixture directory}/control:/control:rw
+      - ./import_service:/app/import_service:ro
+    networks:
+      bank_import:
+        aliases: [bank-viewer-test]
+networks:
+  bank_import:
+    external: true
+    name: bank_import

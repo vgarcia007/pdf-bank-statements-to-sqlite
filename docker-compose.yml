@@ -1,32 +1,81 @@
 services:
   ingparser:
+    # Console maintenance is read-only against the published bank data.
+    profiles: [maintenance]
     build:
       context: .
       dockerfile: Dockerfile
+    image: pdf-bank-statements-to-sqlite-ingparser
     container_name: ingparser
     working_dir: /app
-    # Keep an interactive TTY open so "docker compose exec" feels nice
     tty: true
     stdin_open: true
     volumes:
+      - ./data:/app/data:ro
+      - ./ing2db.py:/app/ing2db.py:ro
+      - ./paypalcsv2db.py:/app/paypalcsv2db.py:ro
+  importer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pdf-bank-statements-to-sqlite-ingparser
+    command: [python, /app/import_service/service.py]
+    user: "1000:1000"
+    restart: unless-stopped
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 96
+    mem_limit: 1536m
+    environment:
+      BANK_TOKEN_FILE: /run/secrets/import-token
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    volumes:
       - ./data:/app/data:rw
-    # If you need network access to fetch wheels, leave this as default
-    # networks: [default]
-    # environment:
-    #   - YOUR_ENV=value
+      - ./ing2db.py:/app/ing2db.py:ro
+      - ./paypalcsv2db.py:/app/paypalcsv2db.py:ro
+      - ./import-control:/control:rw
+      - ./import_service:/app/import_service:ro
+      - ./tests:/app/tests:ro
+      - ./secrets/import-token:/run/secrets/import-token:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health',timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      default:
+      bank_import:
+        aliases: [bank-importer]
   viewer:
-    image: datasetteproject/datasette
-    command: [
-      "datasette", "serve",
-      "--immutable", "/data/bank.sqlite3",
-      "--host", "0.0.0.0",
-      "--port", "8000",
-      "--setting", "sql_time_limit_ms", "3000",
-      "--setting", "allow_download", "on",
-      "--metadata", "/data/metadata.yaml"
-    ]
+    image: datasetteproject/datasette@sha256:0f57db16cf4eb6cca57f1cedaa0a696bca1c65a1d75b8f7ee372c2dd909a32a0
+    entrypoint: [python, /app/import_service/viewer.py]
+    user: "1000:1000"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    restart: unless-stopped
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     ports:
       - "8123:8000"
     volumes:
-      - ./data:/data:ro   # read-only mount der DB + metadata
-
+      - ./data:/data:ro
+      - ./import-control:/control:rw
+      - ./import_service:/app/import_service:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/-/versions.json',timeout=2)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      default:
+      bank_import:
+        aliases: [bank-datasette]
+networks:
+  bank_import:
+    external: true
+    name: bank_import
