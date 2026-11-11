@@ -122,7 +122,14 @@ Private Ablage, vollständig außerhalb von Git:
 Originale/Historie werden derzeit nicht automatisch gelöscht. Speicher überwachen.
 Lokale Rückfallsicherungen sind kein externes Backup: Bankdatenbank, private
 Ablage, Metadaten, Schlüssel und Projektdateien gemeinsam separat sichern.
-Das Invoice-2-Vollbackup umfasst dieses eigenständige Projekt nicht.
+Bei entsprechend konfigurierter gemeinsamer Vollsicherung umfasst das
+Invoice-2-Backup dieses Projekt zusätzlich als eigenen Bereich `bank/`:
+Projektdateien, Originale, SQLite-Datenbanken, Importhistorie, Metadaten,
+Kontenfreigaben, Kontrollzustand und Schlüssel. Beide Bankdienste werden für die
+Dateikopie angehalten und anschließend wieder gestartet. Integrität der
+SQLite-Kopien und ein isolierter Start von Viewer/Import-API werden geprüft.
+Die Projekte und ihre Datenverantwortung bleiben getrennt; ohne diese optionale
+Backupkonfiguration ist weiterhin eine eigene externe Sicherung erforderlich.
 
 ## Tests
 
